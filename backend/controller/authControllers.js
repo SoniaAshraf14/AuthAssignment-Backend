@@ -48,33 +48,51 @@ export const resetPassword = async (req, res) => {
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(404).json({ error: "Invalid email or password" });
+  try {
+    // 🔍 Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "Invalid email or password" });
+    }
+
+    // 🔐 Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid email or password" });
+    }
+
+    // 🚫 Check if account is inactive
+    if (user.status === "inactive") {
+      return res.status(403).json({ error: "Your account is inactive. Please contact the admin." });
+    }
+
+    // ✅ Create JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // ✅ Send success response
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        username: user.username,
+        dob: user.dob,
+        gender: user.gender,
+        profileImage: user.profileImage,
+        coverPhoto: user.coverPhoto,
+        userType: user.userType,
+        status: user.status,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error during login" });
   }
-
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return res.status(400).json({ error: "Invalid email or password" });
-  }
-
-  const token = jwt.sign(
-    { userId: user._id, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
-
-  res.json({
-    message: "Login successful",
-    token,
-    user: {
-      _id: user._id,
-      email: user.email,
-      username: user.username,
-      dob: user.dob,
-      profileImage: user.profileImage,
-      coverPhoto: user.coverPhoto,
-    },
-  });
 };
+
 
